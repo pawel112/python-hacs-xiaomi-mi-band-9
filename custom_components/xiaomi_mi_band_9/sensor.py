@@ -50,10 +50,11 @@ SENSORS = [
         "unique_id": "miband9_distance",
         "name": "Dystans",
         "source": "sensor.miband_distance",
-        "unit": "m",
+        "unit": "km",
         "device_class": None,
         "state_class": SensorStateClass.TOTAL_INCREASING,
         "icon": "mdi:map-marker-distance",
+        "divide_by": 1000,
     },
     {
         "unique_id": "miband9_sleep",
@@ -85,6 +86,7 @@ SENSORS = [
         "icon": "mdi:bluetooth-connect",
         "is_timestamp": True,
     },
+
 ]
 
 
@@ -111,6 +113,7 @@ class MiBand9Sensor(SensorEntity):
         self._is_timestamp = cfg.get("is_timestamp", False)
         self._sleep_quality = cfg.get("sleep_quality", False)
         self._sleep_hours = cfg.get("sleep_hours", False)
+        self._divide_by = cfg.get("divide_by", None)
         self._attr_unique_id = cfg["unique_id"]
         self._attr_name = cfg["name"]
         self._attr_native_unit_of_measurement = cfg["unit"]
@@ -151,6 +154,13 @@ class MiBand9Sensor(SensorEntity):
         if self._sleep_hours:
             try:
                 self._attr_native_value = round(float(state.state) / 60, 2)
+            except (ValueError, TypeError):
+                self._attr_native_value = None
+            return
+
+        if self._divide_by:
+            try:
+                self._attr_native_value = round(float(state.state) / self._divide_by, 2)
             except (ValueError, TypeError):
                 self._attr_native_value = None
             return
