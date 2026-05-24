@@ -105,6 +105,8 @@ async def async_setup_entry(
 
 
 class MiBand9Sensor(SensorEntity):
+    """Sensor mirroring a source entity under Mi Band 9 device."""
+
     _attr_has_entity_name = True
     _attr_should_poll = False
 
@@ -181,14 +183,14 @@ class MiBand9Sensor(SensorEntity):
 
     @property
     def extra_state_attributes(self):
-    state = self.hass.states.get(self._source)
-    if state:
-        attrs = dict(state.attributes)
-        # Usuń unit_of_measurement z atrybutów - HA weźmie go z native_unit
-        attrs.pop("unit_of_measurement", None)
-        attrs.pop("friendly_name", None)
-        return attrs
-    return {}
+        """Przekaż atrybuty z encji źródłowej."""
+        state = self.hass.states.get(self._source)
+        if state:
+            attrs = dict(state.attributes)
+            attrs.pop("unit_of_measurement", None)
+            attrs.pop("friendly_name", None)
+            return attrs
+        return {}
 
     @property
     def available(self) -> bool:
