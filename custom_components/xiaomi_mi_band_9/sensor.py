@@ -1,6 +1,9 @@
 """Sensor platform for Xiaomi Mi Band 9."""
 from __future__ import annotations
 
+import re as _re
+from datetime import datetime, timezone
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -10,7 +13,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
-from datetime import datetime, timezone
 
 from .device import DEVICE_INFO
 from . import DOMAIN
@@ -25,7 +27,6 @@ SENSORS = [
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:heart-pulse",
-        "attr_key": None,
     },
     {
         "unique_id": "miband9_steps",
@@ -35,7 +36,6 @@ SENSORS = [
         "device_class": None,
         "state_class": SensorStateClass.TOTAL_INCREASING,
         "icon": "mdi:walk",
-        "attr_key": None,
     },
     {
         "unique_id": "miband9_calories",
@@ -45,7 +45,6 @@ SENSORS = [
         "device_class": None,
         "state_class": SensorStateClass.TOTAL_INCREASING,
         "icon": "mdi:food",
-        "attr_key": None,
     },
     {
         "unique_id": "miband9_distance",
@@ -55,7 +54,6 @@ SENSORS = [
         "device_class": None,
         "state_class": SensorStateClass.TOTAL_INCREASING,
         "icon": "mdi:map-marker-distance",
-        "attr_key": None,
     },
     {
         "unique_id": "miband9_sleep",
@@ -65,7 +63,6 @@ SENSORS = [
         "device_class": None,
         "state_class": None,
         "icon": "mdi:sleep",
-        "attr_key": None,
         "sleep_quality": True,
     },
     {
@@ -76,7 +73,6 @@ SENSORS = [
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:clock-outline",
-        "attr_key": None,
         "sleep_hours": True,
     },
     {
@@ -87,7 +83,6 @@ SENSORS = [
         "device_class": SensorDeviceClass.TIMESTAMP,
         "state_class": None,
         "icon": "mdi:bluetooth-connect",
-        "attr_key": None,
         "is_timestamp": True,
     },
 ]
@@ -144,11 +139,11 @@ class MiBand9Sensor(SensorEntity):
             return
 
         if self._sleep_quality:
-            import re as _re
             raw = state.state
             match = _re.search(
-                r'(bardzo dobry sen|dobry sen|przeci.tny sen|z.y sen|bardzo z.y sen)',
-                raw, _re.IGNORECASE
+                r"(bardzo dobry sen|dobry sen|przeci.tny sen|z.y sen|bardzo z.y sen)",
+                raw,
+                _re.IGNORECASE,
             )
             self._attr_native_value = match.group(0).capitalize() if match else raw
             return
@@ -169,28 +164,28 @@ class MiBand9Sensor(SensorEntity):
                     ts = int(raw)
                     if ts > 1_000_000_000_000:
                         ts = ts // 1000
-                    if ts > 0:
-                        self._attr_native_value = datetime.fromtimestamp(ts, tz=timezone.utc)
-                    else:
-                        self._attr_native_value = None
+                    self._attr_native_value = (
+                        datetime.fromtimestamp(ts, tz=timezone.utc) if ts > 0 else None
+                    )
                 except (ValueError, TypeError):
                     self._attr_native_value = None
-        else:
-            try:
-                self._attr_native_value = float(state.state)
-            except (ValueError, TypeError):
-                self._attr_native_value = state.state
+            return
+
+        try:
+            self._attr_native_value = float(state.state)
+        except (ValueError, TypeError):
+            self._attr_native_value = state.state
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict:
         """Przekaż atrybuty z encji źródłowej."""
         state = self.hass.states.get(self._source)
-        if state:
-            attrs = dict(state.attributes)
-            attrs.pop("unit_of_measurement", None)
-            attrs.pop("friendly_name", None)
-            return attrs
-        return {}
+        if not state:
+            return {}
+        attrs = dict(state.attributes)
+        attrs.pop("unit_of_measurement", None)
+        attrs.pop("friendly_name", None)
+        return attrs
 
     @property
     def available(self) -> bool:
