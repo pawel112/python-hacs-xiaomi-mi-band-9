@@ -86,6 +86,15 @@ SENSORS = [
         "icon": "mdi:bluetooth-connect",
         "is_timestamp": True,
     },
+    {
+        "unique_id": "miband9_battery",
+        "name": "Bateria",
+        "source": "sensor.miband_battery",  # sprawdź dokładną nazwę!
+        "unit": "%",
+        "device_class": SensorDeviceClass.BATTERY,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "icon": "mdi:battery",
+    },
 
 ]
 
