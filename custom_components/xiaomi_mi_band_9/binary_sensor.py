@@ -22,7 +22,7 @@ async def async_setup_entry(
 
 
 class MiBand9Connected(BinarySensorEntity):
-    """Binary sensor: czy Mi Band jest połączony."""
+    """Binary sensor: czy Mi Band jest połączony (na podstawie sensor.miband_trigger_6)."""
 
     _attr_has_entity_name = True
     _attr_name = "Połączony"
@@ -32,6 +32,8 @@ class MiBand9Connected(BinarySensorEntity):
     _attr_should_poll = False
     _attr_device_info = DEVICE_INFO
 
+    SOURCE = "sensor.miband_trigger_6"
+
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
 
@@ -39,7 +41,7 @@ class MiBand9Connected(BinarySensorEntity):
         self.async_on_remove(
             async_track_state_change_event(
                 self.hass,
-                ["sensor.miband_trigger_6", "sensor.miband_trigger_7"],
+                [self.SOURCE],
                 self._handle_state_change,
             )
         )
@@ -51,16 +53,25 @@ class MiBand9Connected(BinarySensorEntity):
         self.async_write_ha_state()
 
     def _update_state(self) -> None:
-        s_conn = self.hass.states.get("sensor.miband_trigger_6")
-        s_disc = self.hass.states.get("sensor.miband_trigger_7")
+        """
+        sensor.miband_trigger_6 aktualizuje się przy każdym połączeniu.
+        Jeśli wartość to ISO datetime i jest świeża (< 60s), uznajemy że połączony.
+        """
+        from datetime import datetime, timezone, timedelta
+        state = self.hass.states.get(self.SOURCE)
+        if state is None or state.state in ("unknown", "unavailable", ""):
+            self._attr_is_on = None
+            return
         try:
-            connected = int(s_conn.state) if s_conn else 0
-            disconnected = int(s_disc.state) if s_disc else 0
-            self._attr_is_on = connected > disconnected
+            last_conn = datetime.fromisoformat(state.state)
+            now = datetime.now(tz=timezone.utc)
+            # Jeśli ostatnie połączenie było < 5 min temu, uznaj za połączony
+            # W praktyce Notify for Mi Band odświeża ten sensor przy połączeniu
+            self._attr_is_on = (now - last_conn.astimezone(timezone.utc)) < timedelta(minutes=5)
         except (ValueError, TypeError):
             self._attr_is_on = None
 
     @property
     def available(self) -> bool:
-        s = self.hass.states.get("sensor.miband_trigger_6")
-        return s is not None and s.state not in ("unknown", "unavailable")
+        state = self.hass.states.get(self.SOURCE)
+        return state is not None and state.state not in ("unknown", "unavailable")

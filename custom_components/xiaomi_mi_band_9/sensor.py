@@ -10,32 +10,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
-from homeassistant.util.dt import as_local
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .device import DEVICE_INFO
 from . import DOMAIN
 
 
 SENSORS = [
-    {
-        "unique_id": "miband9_battery",
-        "name": "Bateria",
-        "source": "sensor.miband_battery",
-        "unit": "%",
-        "device_class": SensorDeviceClass.BATTERY,
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:battery-heart",
-    },
-    {
-        "unique_id": "miband9_steps",
-        "name": "Kroki",
-        "source": "sensor.miband_steps",
-        "unit": "kroki",
-        "device_class": None,
-        "state_class": SensorStateClass.TOTAL_INCREASING,
-        "icon": "mdi:walk",
-    },
     {
         "unique_id": "miband9_heartrate",
         "name": "Tętno",
@@ -44,61 +25,78 @@ SENSORS = [
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:heart-pulse",
+        "attr_key": None,
+    },
+    {
+        "unique_id": "miband9_steps",
+        "name": "Kroki",
+        "source": "sensor.miband_steps",
+        "unit": "steps",
+        "device_class": None,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "icon": "mdi:walk",
+        "attr_key": None,
+    },
+    {
+        "unique_id": "miband9_calories",
+        "name": "Kalorie",
+        "source": "sensor.miband_calories",
+        "unit": "cal",
+        "device_class": None,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "icon": "mdi:food",
+        "attr_key": None,
+    },
+    {
+        "unique_id": "miband9_distance",
+        "name": "Dystans",
+        "source": "sensor.miband_distance",
+        "unit": "m",
+        "device_class": None,
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "icon": "mdi:map-marker-distance",
+        "attr_key": None,
     },
     {
         "unique_id": "miband9_sleep",
         "name": "Sen",
         "source": "sensor.miband_sleep",
+        "unit": None,
+        "device_class": None,
+        "state_class": None,
+        "icon": "mdi:sleep",
+        "attr_key": None,
+    },
+    {
+        "unique_id": "miband9_sleep_duration",
+        "name": "Czas snu",
+        "source": "sensor.miband_sleepduration",
         "unit": "min",
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:sleep",
+        "icon": "mdi:clock-outline",
+        "attr_key": None,
     },
     {
-        "unique_id": "miband9_spo2",
-        "name": "SpO2",
-        "source": "sensor.miband_spo2",
-        "unit": "%",
-        "device_class": None,
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:blood-bag",
-    },
-    {
-        "unique_id": "miband9_stress",
-        "name": "Stres",
-        "source": "sensor.miband_stress",
-        "unit": None,
-        "device_class": None,
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:emoticon-frown-outline",
-    },
-    {
-        "unique_id": "miband9_activity_score",
-        "name": "Aktywność",
-        "source": "sensor.miband_as",
-        "unit": None,
-        "device_class": None,
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:lightning-bolt",
-    },
-    {
-        "unique_id": "miband9_trigger_connected",
+        "unique_id": "miband9_connected_ts",
         "name": "Ostatnie połączenie",
         "source": "sensor.miband_trigger_6",
         "unit": None,
         "device_class": SensorDeviceClass.TIMESTAMP,
         "state_class": None,
         "icon": "mdi:bluetooth-connect",
+        "attr_key": None,
         "is_timestamp": True,
     },
     {
-        "unique_id": "miband9_trigger_disconnected",
-        "name": "Ostatnie rozłączenie",
-        "source": "sensor.miband_trigger_7",
+        "unique_id": "miband9_connected_raw",
+        "name": "Status połączenia",
+        "source": "sensor.miband_connected",
         "unit": None,
         "device_class": SensorDeviceClass.TIMESTAMP,
         "state_class": None,
-        "icon": "mdi:bluetooth-off",
+        "icon": "mdi:timeline-clock",
+        "attr_key": None,
         "is_timestamp": True,
     },
 ]
@@ -116,7 +114,7 @@ async def async_setup_entry(
 
 
 class MiBand9Sensor(SensorEntity):
-    """Sensor mirroring a source entity, grouped under Mi Band 9 device."""
+    """Sensor mirroring a source entity under Mi Band 9 device."""
 
     _attr_has_entity_name = True
     _attr_should_poll = False
@@ -148,28 +146,41 @@ class MiBand9Sensor(SensorEntity):
 
     def _update_state(self) -> None:
         state = self.hass.states.get(self._source)
-        if state is None or state.state in ("unknown", "unavailable"):
+        if state is None or state.state in ("unknown", "unavailable", ""):
             self._attr_native_value = None
             return
 
         if self._is_timestamp:
+            # Obsługa zarówno ISO string jak i unix timestamp
+            raw = state.state
             try:
-                ts = int(state.state)
-                if ts > 0:
-                    self._attr_native_value = as_local(
-                        datetime.utcfromtimestamp(ts).replace(
-                            tzinfo=__import__("datetime").timezone.utc
-                        )
-                    )
-                else:
+                # Próbuj jako ISO datetime (np. "2026-05-24T15:38:01+0200")
+                self._attr_native_value = datetime.fromisoformat(raw)
+            except ValueError:
+                try:
+                    # Próbuj jako unix timestamp (ms lub s)
+                    ts = int(raw)
+                    if ts > 1_000_000_000_000:
+                        ts = ts // 1000
+                    if ts > 0:
+                        self._attr_native_value = datetime.fromtimestamp(ts, tz=timezone.utc)
+                    else:
+                        self._attr_native_value = None
+                except (ValueError, TypeError):
                     self._attr_native_value = None
-            except (ValueError, TypeError):
-                self._attr_native_value = None
         else:
             try:
                 self._attr_native_value = float(state.state)
             except (ValueError, TypeError):
                 self._attr_native_value = state.state
+
+    @property
+    def extra_state_attributes(self):
+        """Przekaż atrybuty z encji źródłowej."""
+        state = self.hass.states.get(self._source)
+        if state:
+            return dict(state.attributes)
+        return {}
 
     @property
     def available(self) -> bool:
