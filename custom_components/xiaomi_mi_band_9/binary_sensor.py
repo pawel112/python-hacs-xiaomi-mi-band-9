@@ -22,8 +22,6 @@ async def async_setup_entry(
 
 
 class MiBand9Connected(BinarySensorEntity):
-    """Binary sensor: czy Mi Band jest połączony (na podstawie sensor.miband_trigger_6)."""
-
     _attr_has_entity_name = True
     _attr_name = "Połączony"
     _attr_unique_id = "miband9_connected"
@@ -40,9 +38,7 @@ class MiBand9Connected(BinarySensorEntity):
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
             async_track_state_change_event(
-                self.hass,
-                [self.SOURCE],
-                self._handle_state_change,
+                self.hass, [self.SOURCE], self._handle_state_change,
             )
         )
         self._update_state()
@@ -53,10 +49,6 @@ class MiBand9Connected(BinarySensorEntity):
         self.async_write_ha_state()
 
     def _update_state(self) -> None:
-        """
-        sensor.miband_trigger_6 aktualizuje się przy każdym połączeniu.
-        Jeśli wartość to ISO datetime i jest świeża (< 60s), uznajemy że połączony.
-        """
         from datetime import datetime, timezone, timedelta
         state = self.hass.states.get(self.SOURCE)
         if state is None or state.state in ("unknown", "unavailable", ""):
@@ -65,8 +57,6 @@ class MiBand9Connected(BinarySensorEntity):
         try:
             last_conn = datetime.fromisoformat(state.state)
             now = datetime.now(tz=timezone.utc)
-            # Jeśli ostatnie połączenie było < 5 min temu, uznaj za połączony
-            # W praktyce Notify for Mi Band odświeża ten sensor przy połączeniu
             self._attr_is_on = (now - last_conn.astimezone(timezone.utc)) < timedelta(minutes=5)
         except (ValueError, TypeError):
             self._attr_is_on = None

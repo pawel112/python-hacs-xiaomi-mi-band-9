@@ -59,23 +59,25 @@ SENSORS = [
     },
     {
         "unique_id": "miband9_sleep",
-        "name": "Sen",
+        "name": "Jakość snu",
         "source": "sensor.miband_sleep",
         "unit": None,
         "device_class": None,
         "state_class": None,
         "icon": "mdi:sleep",
         "attr_key": None,
+        "sleep_quality": True,
     },
     {
         "unique_id": "miband9_sleep_duration",
         "name": "Czas snu",
         "source": "sensor.miband_sleepduration",
-        "unit": "min",
+        "unit": "h",
         "device_class": None,
         "state_class": SensorStateClass.MEASUREMENT,
         "icon": "mdi:clock-outline",
         "attr_key": None,
+        "sleep_hours": True,
     },
     {
         "unique_id": "miband9_connected_ts",
@@ -85,17 +87,6 @@ SENSORS = [
         "device_class": SensorDeviceClass.TIMESTAMP,
         "state_class": None,
         "icon": "mdi:bluetooth-connect",
-        "attr_key": None,
-        "is_timestamp": True,
-    },
-    {
-        "unique_id": "miband9_connected_raw",
-        "name": "Status połączenia",
-        "source": "sensor.miband_connected",
-        "unit": None,
-        "device_class": SensorDeviceClass.TIMESTAMP,
-        "state_class": None,
-        "icon": "mdi:timeline-clock",
         "attr_key": None,
         "is_timestamp": True,
     },
@@ -114,8 +105,6 @@ async def async_setup_entry(
 
 
 class MiBand9Sensor(SensorEntity):
-    """Sensor mirroring a source entity under Mi Band 9 device."""
-
     _attr_has_entity_name = True
     _attr_should_poll = False
 
@@ -123,6 +112,8 @@ class MiBand9Sensor(SensorEntity):
         self.hass = hass
         self._source = cfg["source"]
         self._is_timestamp = cfg.get("is_timestamp", False)
+        self._sleep_quality = cfg.get("sleep_quality", False)
+        self._sleep_hours = cfg.get("sleep_hours", False)
         self._attr_unique_id = cfg["unique_id"]
         self._attr_name = cfg["name"]
         self._attr_native_unit_of_measurement = cfg["unit"]
@@ -150,15 +141,29 @@ class MiBand9Sensor(SensorEntity):
             self._attr_native_value = None
             return
 
+        if self._sleep_quality:
+            import re as _re
+            raw = state.state
+            match = _re.search(
+                r'(bardzo dobry sen|dobry sen|przeci.tny sen|z.y sen|bardzo z.y sen)',
+                raw, _re.IGNORECASE
+            )
+            self._attr_native_value = match.group(0).capitalize() if match else raw
+            return
+
+        if self._sleep_hours:
+            try:
+                self._attr_native_value = round(float(state.state) / 60, 2)
+            except (ValueError, TypeError):
+                self._attr_native_value = None
+            return
+
         if self._is_timestamp:
-            # Obsługa zarówno ISO string jak i unix timestamp
             raw = state.state
             try:
-                # Próbuj jako ISO datetime (np. "2026-05-24T15:38:01+0200")
                 self._attr_native_value = datetime.fromisoformat(raw)
             except ValueError:
                 try:
-                    # Próbuj jako unix timestamp (ms lub s)
                     ts = int(raw)
                     if ts > 1_000_000_000_000:
                         ts = ts // 1000
@@ -176,7 +181,6 @@ class MiBand9Sensor(SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        """Przekaż atrybuty z encji źródłowej."""
         state = self.hass.states.get(self._source)
         if state:
             return dict(state.attributes)
