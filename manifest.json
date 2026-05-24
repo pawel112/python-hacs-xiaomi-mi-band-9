@@ -1,0 +1,13 @@
+{
+  "domain": "xiaomi_mi_band_9",
+  "name": "Xiaomi Mi Band 9",
+  "version": "1.0.0",
+  "config_flow": true,
+  "documentation": "https://github.com/pawel112/python-hacs-xiaomi-mi-band-9",
+  "issue_tracker": "https://github.com/pawel112/python-hacs-xiaomi-mi-band-9/issues",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@pawel112"],
+  "iot_class": "local_push",
+  "homeassistant": "2023.1.0"
+}

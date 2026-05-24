@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Xiaomi Mi Band 9",
+        "description": "Dodaj integrację Xiaomi Mi Band 9"
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Integracja już jest skonfigurowana."
+    }
+  }
+}
