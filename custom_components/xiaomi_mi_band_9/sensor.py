@@ -32,7 +32,7 @@ SENSORS = [
         "unique_id": "miband9_steps",
         "name": "Kroki",
         "source": "sensor.miband_steps",
-        "unit": "steps",
+        "unit": None,
         "device_class": None,
         "state_class": SensorStateClass.TOTAL_INCREASING,
         "icon": "mdi:walk",
