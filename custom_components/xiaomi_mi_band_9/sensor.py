@@ -181,10 +181,14 @@ class MiBand9Sensor(SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        state = self.hass.states.get(self._source)
-        if state:
-            return dict(state.attributes)
-        return {}
+    state = self.hass.states.get(self._source)
+    if state:
+        attrs = dict(state.attributes)
+        # Usuń unit_of_measurement z atrybutów - HA weźmie go z native_unit
+        attrs.pop("unit_of_measurement", None)
+        attrs.pop("friendly_name", None)
+        return attrs
+    return {}
 
     @property
     def available(self) -> bool:
